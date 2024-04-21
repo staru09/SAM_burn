@@ -63,13 +63,13 @@ impl<B: Backend, A: Activation<B>, N: LayerNorm<B>> PromptEncoder<B, A, N> {
         }
     }
 
-    pub fn get_dense_pe(&self) -> Tensor<B, 4> {
+    fn get_dense_pe(&self) -> Tensor<B, 4> {
         self.pe_layer
             .forward(self.image_embedding_size)
             .view_unbind([1, -1, self.image_embedding_size.0, self.image_embedding_size.1])
     }
 
-    pub fn embed_points(
+    fn embed_points(
         &self,
         points: Tensor<B, 2>,
         labels: Tensor<B, 2>,
@@ -110,7 +110,7 @@ impl<B: Backend, A: Activation<B>, N: LayerNorm<B>> PromptEncoder<B, A, N> {
         point_embedding
     }
 
-    pub fn embed_boxes(&self, boxes: Tensor<B, 2>) -> Tensor<B, 3> {
+    fn embed_boxes(&self, boxes: Tensor<B, 2>) -> Tensor<B, 3> {
         
         let boxes = boxes + 0.5; // Shift to center of pixel
         let coords = boxes.view_unbind([-1, 2, 2]);
