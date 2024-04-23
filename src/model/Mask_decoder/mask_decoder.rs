@@ -1,7 +1,12 @@
 use burn::{
-    Device, Embedding, Linear, Module, ModuleList, Parameter, Sequential, Tensor, Transpose2d,
-    TransposeConv2d,
+    module::Module,
+    nn::{
+        Conv2d, Conv2dConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig, Parameter,
+        PaddingConfig2d, Relu,
+    },
+    Device, Tensor,
 };
+use std::marker::PhantomData;
 
 #[derive(Module, Debug)]
 pub struct MaskDecoder<B: Backend, A: Activation<B>> {
