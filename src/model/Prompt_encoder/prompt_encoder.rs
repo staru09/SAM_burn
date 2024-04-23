@@ -63,13 +63,13 @@ impl<B: Backend, A: Activation<B>, N: LayerNorm<B>> PromptEncoder<B, A, N> {
         }
     }
 
-    pub fn get_dense_pe(&self) -> Tensor<B, 4> {
+    fn get_dense_pe(&self) -> Tensor<B, 4> {
         self.pe_layer
             .forward(self.image_embedding_size)
             .view_unbind([1, -1, self.image_embedding_size.0, self.image_embedding_size.1])
     }
 
-    pub fn embed_points(
+    fn embed_points(
         &self,
         points: Tensor<B, 2>,
         labels: Tensor<B, 2>,
@@ -110,7 +110,7 @@ impl<B: Backend, A: Activation<B>, N: LayerNorm<B>> PromptEncoder<B, A, N> {
         point_embedding
     }
 
-    pub fn embed_boxes(&self, boxes: Tensor<B, 2>) -> Tensor<B, 3> {
+    fn embed_boxes(&self, boxes: Tensor<B, 2>) -> Tensor<B, 3> {
         
         let boxes = boxes + 0.5; // Shift to center of pixel
         let coords = boxes.view_unbind([-1, 2, 2]);
@@ -129,4 +129,62 @@ impl<B: Backend, A: Activation<B>, N: LayerNorm<B>> PromptEncoder<B, A, N> {
 
         corner_embedding
     }
+
+    fn _embed_masks(&self, masks: Tensor<B, 4>) -> Tensor<B, 4> {
+        let mask_embedding = self.mask_downscaling.forward(masks);
+        mask_embedding
+    }
+
+    fn _get_batch_size(
+        &self,
+        points: Option<&(Tensor<B, 2>, Tensor<B, 1>)>,
+        boxes: Option<&Tensor<B, 2>>,
+        masks: Option<&Tensor<B, 4>>,
+    ) -> usize {
+        
+        if let Some((coords, _)) = points {
+            coords.size()[0]
+        } else if let Some(boxes) = boxes {
+            boxes.size()[0]
+        } else if let Some(masks) = masks {
+            masks.size()[0]
+        } else {
+            1
+        }
+    }
+
+    fn _get_device(&self) -> Device<B> {
+        self.point_embeddings[0].weight.device().clone()
+    }
+
+    pub fn forward(
+        &self,
+        points: Option<(Tensor<B, 2>, Tensor<B, 1>)>,
+        boxes: Option<Tensor<B, 2>>,
+        masks: Option<Tensor<B, 4>>,
+    ) -> (Tensor<B, 3>, Tensor<B, 4>) {
+        let bs = self._get_batch_size(points.as_ref(), boxes.as_ref(), masks.as_ref());
+        let mut sparse_embeddings = Tensor::zeros(&[bs, 0, self.embed_dim], self._get_device());
+
+        if let Some((coords, labels)) = points {
+            let point_embeddings = self._embed_points(coords, labels, boxes.is_none());
+            sparse_embeddings = sparse_embeddings.concat_dim(1, &point_embeddings);
+        }
+
+        if let Some(boxes) = boxes {
+            let box_embeddings = self._embed_boxes(boxes);
+            sparse_embeddings = sparse_embeddings.concat_dim(1, &box_embeddings);
+        }
+
+        let dense_embeddings = if let Some(masks) = masks {
+            self._embed_masks(masks)
+        } else {
+            self.no_mask_embed.weight
+                .reshape([1, -1, 1, 1])
+                .expand([bs, -1, self.image_embedding_size.0, self.image_embedding_size.1])
+        };
+
+        (sparse_embeddings, dense_embeddings)
+    }
 }
+
