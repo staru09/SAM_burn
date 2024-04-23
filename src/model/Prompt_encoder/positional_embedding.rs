@@ -18,14 +18,12 @@ impl<B: burn::Backend> PositionEmbeddingRandom<B> {
     }
 
     fn _pe_encoding(&self, coords: &Tensor<B, 3>) -> Tensor<B, 3> {
-        // assuming coords are in [0, 1]^2 square and have d_1 x ... x d_n x 2 shape
         let mut coords = coords.clone();
         coords.mul_scalar(B::Scalar::from_f64(2.0));
         coords.sub_scalar(B::Scalar::one());
         let coords = coords.matmul(&self.positional_encoding_gaussian_matrix.view(2, -1));
         let coords = coords.mul_scalar(B::Scalar::from_f64(2.0 * std::f64::consts::PI));
-
-        // outputs d_1 x ... x d_n x C shape
+        
         concat(
             &[&coords.sin(), &coords.cos()],
             coords.ndim() - 1,
