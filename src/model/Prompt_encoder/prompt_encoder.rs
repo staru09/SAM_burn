@@ -8,7 +8,6 @@ use burn::{
         positional_embedding::PositionEmbeddingRandom,
     },
     nn::activation::Activation,
-    tensor_trait::Tensor,
     Backend, Device,
 };
 
